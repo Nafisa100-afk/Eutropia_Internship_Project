@@ -4,25 +4,36 @@ from django.core.management.base import BaseCommand
 
 from accounts.models import User
 
+# (env prefix, role, django admin site access)
+ACCOUNTS = [
+    ("ADMIN", "admin", True),
+    ("MAYOR", "mayor", False),
+    ("AGENT", "agent", False),
+]
+
 
 class Command(BaseCommand):
-    help = "Create an admin user from ADMIN_USERNAME / ADMIN_PASSWORD env vars (if missing)."
+    help = (
+        "Create admin / mayor / agent users from env vars "
+        "(ADMIN_USERNAME + ADMIN_PASSWORD, MAYOR_..., AGENT_...) if missing."
+    )
 
     def handle(self, *args, **options):
-        username = os.environ.get("ADMIN_USERNAME")
-        password = os.environ.get("ADMIN_PASSWORD")
-        if not username or not password:
-            self.stdout.write("ADMIN_USERNAME/ADMIN_PASSWORD not set, skipping.")
-            return
-        if User.objects.filter(username=username).exists():
-            self.stdout.write("Admin already exists.")
-            return
-        User.objects.create_user(
-            username=username,
-            password=password,
-            email=os.environ.get("ADMIN_EMAIL", ""),
-            role="admin",
-            is_staff=True,
-            is_superuser=True,
-        )
-        self.stdout.write(self.style.SUCCESS(f"Admin '{username}' created."))
+        for prefix, role, is_admin in ACCOUNTS:
+            username = os.environ.get(f"{prefix}_USERNAME")
+            password = os.environ.get(f"{prefix}_PASSWORD")
+            if not username or not password:
+                self.stdout.write(f"{prefix}_USERNAME/{prefix}_PASSWORD not set, skipping {role}.")
+                continue
+            if User.objects.filter(username=username).exists():
+                self.stdout.write(f"{role.capitalize()} '{username}' already exists.")
+                continue
+            User.objects.create_user(
+                username=username,
+                password=password,
+                email=os.environ.get(f"{prefix}_EMAIL", ""),
+                role=role,
+                is_staff=is_admin,
+                is_superuser=is_admin,
+            )
+            self.stdout.write(self.style.SUCCESS(f"{role.capitalize()} '{username}' created."))

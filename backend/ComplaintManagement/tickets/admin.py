@@ -9,6 +9,8 @@ class TicketAdmin(admin.ModelAdmin):
         "subject",
         "customer",
         "assigned_agent",
+        "category",
+        "ward",
         "priority",
         "status",
         "created_at",
@@ -17,9 +19,14 @@ class TicketAdmin(admin.ModelAdmin):
     list_filter = (
         "priority",
         "status",
+        "category",
+        "ward",
     )
 
     search_fields = (
         "subject",
         "description",
+        "location",
+        "road",
+        "ward",
     )

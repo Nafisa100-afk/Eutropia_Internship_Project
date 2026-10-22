@@ -10,6 +10,7 @@ class ActivityLog(models.Model):
         ("status_changed", "Status Changed"),
         ("priority_changed", "Priority Changed"),
         ("ticket_resolved", "Ticket Resolved"),
+        ("details_updated", "Details Updated"),
     ]
 
     ticket = models.ForeignKey(

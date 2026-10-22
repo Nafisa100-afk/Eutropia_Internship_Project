@@ -37,3 +37,12 @@ class CustomerRegistrationSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
+
+
+class MeSerializer(serializers.ModelSerializer):
+    """Logged in user er basic info (role shoho)."""
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "first_name", "last_name", "email", "role"]
+        read_only_fields = fields

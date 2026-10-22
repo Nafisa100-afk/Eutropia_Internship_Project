@@ -18,7 +18,7 @@ class DashboardSummaryView(APIView):
     def get(self, request):
         user = request.user
 
-        if user.role == "admin":
+        if user.role in ("admin", "mayor"):
             tickets = Ticket.objects.all()
         elif user.role == "agent":
             tickets = Ticket.objects.filter(assigned_agent=user)

@@ -23,7 +23,7 @@ class SLAListView(generics.ListAPIView):
                 ticket__assigned_agent=user
             )
 
-        elif user.role == "admin":
+        elif user.role in ("admin", "mayor"):
             slas = SLA.objects.all()
 
         else:

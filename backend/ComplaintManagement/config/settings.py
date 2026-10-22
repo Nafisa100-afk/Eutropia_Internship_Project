@@ -158,6 +158,10 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
+    "DEFAULT_THROTTLE_RATES": {
+        "guest_submit": "10/hour",
+        "guest_track": "60/hour",
+    },
 }
 AUTH_USER_MODEL = "accounts.User"
 

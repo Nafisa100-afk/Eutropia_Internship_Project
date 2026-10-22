@@ -26,6 +26,12 @@ const navByRole: Record<Role, Item[]> = {
     { label: 'SLA & deadlines', to: '/admin/deadlines', icon: Clock3 },
     { label: 'My profile', to: '/admin/profile', icon: UserRound },
   ],
+  mayor: [
+    { label: 'Overview', to: '/mayor/dashboard', icon: LayoutDashboard },
+    { label: 'All tickets', to: '/mayor/complaints', icon: ClipboardList },
+    { label: 'SLA & deadlines', to: '/mayor/deadlines', icon: Clock3 },
+    { label: 'My profile', to: '/mayor/profile', icon: UserRound },
+  ],
 }
 const shared: Item[] = [
   { label: 'Notifications', to: '/notifications', icon: Bell },
@@ -41,6 +47,7 @@ export default function AppShell() {
   const all = [...navByRole[role], ...shared]
   const currentTitle = all.find(i => i.to === location.pathname)?.label ?? (location.pathname.includes('/complaints/') ? 'Ticket details' : 'Workspace')
   const signOut = () => { logout(); navigate('/') }
+  const profilePath = `/${role}/profile`
   const Sidebar = () => (
     <>
       <div className="sidebar-brand"><Brand /></div>
@@ -57,7 +64,7 @@ export default function AppShell() {
           <p>Every ticket has a status and a deadline.</p>
           <NavLink to="/track">Track a ticket <span>↗</span></NavLink>
         </div>
-        <div className="sidebar-user"><div className="avatar">{user!.name.slice(0, 1).toUpperCase()}</div><div className="user-meta"><strong>{user!.name}</strong><small>{roleNames[role]}</small></div><button className="sign-out-btn" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={16} className="muted-icon" /></button></div>
+        <div className="sidebar-user"><NavLink to={profilePath} onClick={() => setMobileOpen(false)} className="user-link" title="Open my profile"><div className="avatar">{user!.name.slice(0, 1).toUpperCase()}</div><div className="user-meta"><strong>{user!.name}</strong><small>{roleNames[role]}</small></div></NavLink><button className="sign-out-btn" onClick={signOut} aria-label="Sign out" title="Sign out"><LogOut size={16} className="muted-icon" /></button></div>
       </div>
     </>
   )
@@ -70,7 +77,7 @@ export default function AppShell() {
           <div className="topbar-left"><button className="mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Open menu"><Menu /></button><div className="breadcrumb"><span>City Connect</span><b>/</b><strong>{currentTitle}</strong></div></div>
           <div className="topbar-actions">
             <NavLink to="/notifications" className="top-icon" aria-label="Notifications"><Bell size={18} /><i /></NavLink>
-            <div className="top-avatar" title={user!.name}>{user!.name.slice(0, 1).toUpperCase()}</div>
+            <NavLink to={profilePath} className="top-avatar" aria-label="My profile" title={`${user!.name} · My profile`}>{user!.name.slice(0, 1).toUpperCase()}</NavLink>
           </div>
         </header>
         <div className="page-content"><Outlet /></div>

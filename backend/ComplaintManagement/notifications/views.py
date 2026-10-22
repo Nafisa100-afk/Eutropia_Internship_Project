@@ -4,13 +4,12 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Notification
 from .serializers import NotificationSerializer
 
+
 class NotificationListView(generics.ListAPIView):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
 
- serializer_class = NotificationSerializer
- permission_classes = [IsAuthenticated]
-
-
-def get_queryset(self):
-    return Notification.objects.filter(
-        recipient=self.request.user
-    ).order_by("-created_at")
+    def get_queryset(self):
+        return Notification.objects.filter(
+            recipient=self.request.user
+        ).select_related("ticket", "recipient").order_by("-created_at")

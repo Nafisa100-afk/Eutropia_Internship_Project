@@ -19,7 +19,7 @@ const area = (role: Role, extra: ReactNode = null) => (
 )
 
 export default function App() {
-  const any: Role[] = ['citizen', 'agent', 'admin']
+  const any: Role[] = ['citizen', 'agent', 'admin', 'mayor']
   return <Routes>
     <Route element={<PublicLayout />}>
       <Route path="/" element={<HomePage />} />
@@ -34,6 +34,7 @@ export default function App() {
     {area('citizen')}
     {area('agent')}
     {area('admin')}
+    {area('mayor')}
     <Route path="/notifications" element={<Protected allowed={any}><AppShell /></Protected>}><Route index element={<NotificationsPage />} /></Route>
     <Route path="/activity" element={<Protected allowed={any}><AppShell /></Protected>}><Route index element={<ActivityPage />} /></Route>
     <Route path="*" element={<NotFoundPage />} />

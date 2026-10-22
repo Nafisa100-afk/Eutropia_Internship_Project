@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowRight, ArrowUpRight, Check, CheckCircle2, Clock3, FileText, MapPin, ShieldCheck, Sparkles, Users, Building2, Search, CircleHelp, AlertCircle, Plus, Filter, CalendarDays, TrendingUp, Activity, Lightbulb, Droplets, Trash2, Construction, LockKeyhole, Mail, Eye, EyeOff, Bell, History } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, BarChart, Bar } from 'recharts'
-import { api, fmt, isOverdue, slaState, trendOf, STATUSES, PRIORITIES, DONE, type Ticket } from '../lib/api'
+import { api, fmt, fmtDay, isOverdue, slaState, trendOf, today, STATUSES, PRIORITIES, CATEGORIES, DONE, type Ticket, type ReportWhere } from '../lib/api'
 import type { Role } from '../lib/api'
 import { roleHome, roleNames } from '../data'
 import { useAuth } from '../auth'
@@ -67,30 +67,119 @@ function NeedLogin({ what }: { what: string }) {
 
 export function NewComplaintPage() {
   const { user } = useAuth()
-  const [f, setF] = useState({ subject: '', description: '', priority: 'medium' })
+  const [mode, setMode] = useState<'choose' | 'guest'>('choose')
+  if (user && user.role !== 'citizen') return <div className="public-page form-page"><div className="success-panel"><span className="eyebrow">CITIZENS ONLY</span><h1>Staff accounts <em>manage tickets.</em></h1><p>Only citizen accounts can submit new complaints.</p><Link className="button button-primary" to={roleHome[user.role]}>Go to my workspace</Link></div></div>
+  if (user) return <CitizenReport />
+  if (mode === 'guest') return <GuestReport onBack={() => setMode('choose')} />
+  return <ReportChoice onGuest={() => setMode('guest')} />
+}
+
+/** Login kora na thakle prothome 2 ta option dekhay */
+function ReportChoice({ onGuest }: { onGuest: () => void }) {
+  return <div className="public-page form-page"><div className="form-heading"><span className="eyebrow">REPORT A LOCAL ISSUE</span><h1>How would you like <em>to report?</em></h1><p>Choose what suits you. Both options reach the same team and get the same deadlines.</p></div>
+    <div className="choice-grid">
+      <article className="choice-card"><span className="choice-icon"><Users size={22} /></span><h3>Sign in or sign up</h3><p>Your reports stay linked to your account, so you can come back to them whenever you like.</p>
+        <ul className="choice-list"><li><Check size={14} />See all your tickets in one place</li><li><Check size={14} />In-app notifications on every update</li><li><Check size={14} />No code to remember</li></ul>
+        <div className="choice-actions"><Link className="button button-primary" to="/login">Sign in <ArrowRight size={16} /></Link><Link className="button button-outline" to="/register">Create account</Link></div></article>
+      <article className="choice-card"><span className="choice-icon sand"><FileText size={22} /></span><h3>Report without signing up</h3><p>No account needed. You will get a ticket number and a tracking code to follow your report.</p>
+        <ul className="choice-list"><li><Check size={14} />Takes about a minute</li><li><Check size={14} />Name, email and phone are optional</li><li><Check size={14} />Track later with your ticket number and code</li></ul>
+        <button className="button button-outline" type="button" onClick={onGuest}>Continue as guest <ArrowRight size={16} /></button></article>
+    </div>
+    <p className="form-demo-disclaimer">Already reported something? <Link className="inline-link" to="/track">Track a ticket</Link></p>
+  </div>
+}
+
+/** Report form er "ki dhoroner / kothay / kokhon" field gulo (guest ar citizen duto form-ei use hoy) */
+const blankWhere = (): ReportWhere => ({ category: '', location: '', road: '', ward: '', incident_date: today() })
+
+function checkWhere(w: ReportWhere, x: Record<string, string>) {
+  if (!w.category) x.category = 'Please choose a category.'
+  if (w.location.trim().length < 3) x.location = 'Tell us where it is (at least 3 characters).'
+  if (!w.ward.trim()) x.ward = 'Enter the ward number or name.'
+  if (!w.incident_date) x.incident_date = 'Choose the date of the issue.'
+  else if (w.incident_date > today()) x.incident_date = 'The date cannot be in the future.'
+}
+
+function WhereFields({ w, setW, err }: { w: ReportWhere; setW: (w: ReportWhere) => void; err: Record<string, string> }) {
+  return <>
+    <label className="field-label">Category <span>*</span><select value={w.category} onChange={e => setW({ ...w, category: e.target.value })}><option value="">Select a category</option>{CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select>{err.category && <span className="field-error" role="alert">{err.category}</span>}</label>
+    <label className="field-label">Location / landmark <span>*</span><input value={w.location} maxLength={255} onChange={e => setW({ ...w, location: e.target.value })} placeholder="e.g. Near Nagar Naluakot bazar, in front of the school" />{err.location && <span className="field-error" role="alert">{err.location}</span>}</label>
+    <div className="form-two-col"><label className="field-label">Road<input value={w.road} maxLength={150} onChange={e => setW({ ...w, road: e.target.value })} placeholder="e.g. Road 7 (optional)" />{err.road && <span className="field-error" role="alert">{err.road}</span>}</label><label className="field-label">Ward <span>*</span><input value={w.ward} maxLength={50} onChange={e => setW({ ...w, ward: e.target.value })} placeholder="e.g. 12" />{err.ward && <span className="field-error" role="alert">{err.ward}</span>}</label></div>
+    <label className="field-label">Date of the issue <span>*</span><input type="date" max={today()} value={w.incident_date} onChange={e => setW({ ...w, incident_date: e.target.value })} />{err.incident_date && <span className="field-error" role="alert">{err.incident_date}</span>}</label>
+  </>
+}
+
+/** Sign up chhara report form */
+function GuestReport({ onBack }: { onBack: () => void }) {
+  const blank = { subject: '', description: '', priority: 'medium', name: '', email: '', phone: '', website: '', ...blankWhere() }
+  const [f, setF] = useState(blank)
   const [err, setErr] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
-  const [done, setDone] = useState<Ticket>()
-  if (!user) return <NeedLogin what="Sign in as a citizen to submit a complaint. Your tickets are linked to your account, so you can follow them later." />
-  if (user.role !== 'citizen') return <div className="public-page form-page"><div className="success-panel"><span className="eyebrow">CITIZENS ONLY</span><h1>Staff accounts <em>manage tickets.</em></h1><p>Only citizen accounts can submit new complaints.</p><Link className="button button-primary" to={roleHome[user.role]}>Go to my workspace</Link></div></div>
+  const [done, setDone] = useState<{ id: string; trackingCode: string; priority: string }>()
+  const [copied, setCopied] = useState(false)
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     const x: Record<string, string> = {}
     if (f.subject.trim().length < 5) x.subject = 'Subject needs at least 5 characters.'
     if (f.description.trim().length < 20) x.description = 'Please describe the issue in at least 20 characters.'
-    setErr(x); if (Object.keys(x).length) return
+    if (f.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) x.email = 'Enter a valid email address, or leave it empty.'
+    checkWhere(f, x); setErr(x); if (Object.keys(x).length) return
     setBusy(true)
-    try { setDone(await api.submit({ subject: f.subject.trim(), description: f.description.trim(), priority: f.priority })); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+    try {
+      setDone(await api.submitGuest({ subject: f.subject.trim(), description: f.description.trim(), priority: f.priority, category: f.category, location: f.location.trim(), road: f.road.trim(), ward: f.ward.trim(), incident_date: f.incident_date, guest_name: f.name.trim(), guest_email: f.email.trim(), guest_phone: f.phone.trim(), website: f.website }))
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (er: any) { setErr({ form: er.message }) }
+    setBusy(false)
+  }
+  const copy = async () => { try { await navigator.clipboard.writeText(`Ticket #${done!.id} · Tracking code ${done!.trackingCode}`); setCopied(true) } catch { /* clipboard blocked */ } }
+  if (done) return <div className="public-page form-page"><div className="success-panel"><span className="success-mark"><CheckCircle2 size={32} /></span><span className="eyebrow">COMPLAINT SUBMITTED</span><h1>Thank you. Your report <em>is in.</em></h1><p>Save both details below. Without an account, this is the only way to follow your ticket.</p>
+    <div className="code-pair"><div className="tracking-example"><span>Ticket number</span><strong>#{done.id}</strong></div><div className="tracking-example"><span>Tracking code</span><strong>{done.trackingCode}</strong></div></div>
+    <div className="privacy-callout save-warning"><LockKeyhole size={20} /><div><strong>Keep this code private</strong><p>Anyone with the ticket number and code can see this ticket. We cannot recover the code if it is lost.</p></div></div>
+    <div className="not-found-actions"><Link className="button button-primary" to={`/track?id=${done.id}&code=${done.trackingCode}`}>Track this ticket <ArrowRight size={16} /></Link><button className="button button-outline" type="button" onClick={copy}>{copied ? 'Copied' : 'Copy details'}</button><button className="button button-quiet" type="button" onClick={() => { setDone(undefined); setCopied(false); setF(blank) }}>Report another issue</button></div></div></div>
+  return <div className="public-page form-page"><button className="back-link back-button" type="button" onClick={onBack}>← Back to options</button><div className="form-heading"><span className="eyebrow">REPORT WITHOUT AN ACCOUNT</span><h1>Tell us what <em>needs attention.</em></h1><p>No sign up needed. Please avoid including private information that is not needed to understand the issue.</p></div>
+    <form className="surface-form" onSubmit={submit} noValidate>
+      <div className="form-section-title"><span>01</span><div><h2>Issue details</h2><p>Tell us what needs attention.</p></div></div>
+      <label className="field-label">Subject <span>*</span><input value={f.subject} onChange={e => setF({ ...f, subject: e.target.value })} placeholder="e.g. Streetlight not working on Road 7" />{err.subject && <span className="field-error" role="alert">{err.subject}</span>}</label>
+      <label className="field-label">Description <span>*</span><textarea rows={5} value={f.description} onChange={e => setF({ ...f, description: e.target.value })} placeholder="Describe what happened, where it is, when you noticed it and why it needs attention." />{err.description && <span className="field-error" role="alert">{err.description}</span>}</label>
+      <label className="field-label">Priority <span>*</span><select value={f.priority} onChange={e => setF({ ...f, priority: e.target.value })}>{PRIORITIES.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}</select></label>
+      <div className="form-section-title form-section-spaced"><span>02</span><div><h2>Category & location</h2><p>What kind of issue is it, where is it, and when did it happen?</p></div></div>
+      <WhereFields w={f} setW={v => setF({ ...f, ...v })} err={err} />
+      <div className="form-section-title form-section-spaced"><span>03</span><div><h2>Contact details <em>(optional)</em></h2><p>Helps staff reach you if they need more information.</p></div></div>
+      <div className="form-two-col"><label className="field-label">Name<input value={f.name} maxLength={100} onChange={e => setF({ ...f, name: e.target.value })} placeholder="Your name" autoComplete="name" /></label><label className="field-label">Phone<input value={f.phone} maxLength={30} onChange={e => setF({ ...f, phone: e.target.value })} placeholder="e.g. 01XXXXXXXXX" autoComplete="tel" /></label></div>
+      <label className="field-label">Email<input type="email" value={f.email} onChange={e => setF({ ...f, email: e.target.value })} placeholder="you@example.com" autoComplete="email" />{err.email && <span className="field-error" role="alert">{err.email}</span>}</label>
+      <div className="hp-field" aria-hidden="true"><label>Website<input tabIndex={-1} autoComplete="off" value={f.website} onChange={e => setF({ ...f, website: e.target.value })} /></label></div>
+      <div className="privacy-callout form-privacy"><Clock3 size={20} /><div><strong>Resolution deadlines</strong><p>Deadline depends on priority: urgent 8 hours, high 24 hours, medium 48 hours, low 72 hours.</p></div></div>
+      {err.form && <p className="field-error" role="alert">{err.form}</p>}
+      <div className="form-actions"><span><span className="required-star">*</span> Required fields</span><button className="button button-primary" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Submit report'} <ArrowRight size={17} /></button></div>
+    </form>
+  </div>
+}
+
+function CitizenReport() {
+  const [f, setF] = useState({ subject: '', description: '', priority: 'medium', ...blankWhere() })
+  const [err, setErr] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState<Ticket>()
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    const x: Record<string, string> = {}
+    if (f.subject.trim().length < 5) x.subject = 'Subject needs at least 5 characters.'
+    if (f.description.trim().length < 20) x.description = 'Please describe the issue in at least 20 characters.'
+    checkWhere(f, x); setErr(x); if (Object.keys(x).length) return
+    setBusy(true)
+    try { setDone(await api.submit({ subject: f.subject.trim(), description: f.description.trim(), priority: f.priority, category: f.category, location: f.location.trim(), road: f.road.trim(), ward: f.ward.trim(), incident_date: f.incident_date })); window.scrollTo({ top: 0, behavior: 'smooth' }) }
     catch (er: any) { setErr({ form: er.message }) }
     setBusy(false)
   }
-  if (done) return <div className="public-page form-page"><div className="success-panel"><span className="success-mark"><CheckCircle2 size={32} /></span><span className="eyebrow">COMPLAINT SUBMITTED</span><h1>Thank you. Your report <em>is in.</em></h1><p>Keep your ticket number to follow the progress. You can also find it under My tickets.</p><div className="tracking-example"><span>Your ticket number</span><strong>#{done.id}</strong><small>Priority: {done.priority}</small></div><div className="not-found-actions"><Link className="button button-primary" to={`/citizen/complaints/${done.id}`}>View ticket <ArrowRight size={16} /></Link><button className="button button-outline" onClick={() => { setDone(undefined); setF({ subject: '', description: '', priority: 'medium' }) }}>Create another report</button></div></div></div>
+  if (done) return <div className="public-page form-page"><div className="success-panel"><span className="success-mark"><CheckCircle2 size={32} /></span><span className="eyebrow">COMPLAINT SUBMITTED</span><h1>Thank you. Your report <em>is in.</em></h1><p>Keep your ticket number to follow the progress. You can also find it under My tickets.</p><div className="tracking-example"><span>Your ticket number</span><strong>#{done.id}</strong><small>Priority: {done.priority}</small></div><div className="not-found-actions"><Link className="button button-primary" to={`/citizen/complaints/${done.id}`}>View ticket <ArrowRight size={16} /></Link><button className="button button-outline" onClick={() => { setDone(undefined); setF({ subject: '', description: '', priority: 'medium', ...blankWhere() }) }}>Create another report</button></div></div></div>
   return <div className="public-page form-page"><div className="form-heading"><span className="eyebrow">REPORT A LOCAL ISSUE</span><h1>Let’s get it on <em>the right track.</em></h1><p>Share the key details below. Please avoid including private information that is not needed to understand the issue.</p></div>
     <form className="surface-form" onSubmit={submit} noValidate>
       <div className="form-section-title"><span>01</span><div><h2>Issue details</h2><p>Tell us what needs attention.</p></div></div>
       <label className="field-label">Subject <span>*</span><input value={f.subject} onChange={e => setF({ ...f, subject: e.target.value })} placeholder="e.g. Streetlight not working on Road 7" />{err.subject && <span className="field-error" role="alert">{err.subject}</span>}</label>
       <label className="field-label">Description <span>*</span><textarea rows={5} value={f.description} onChange={e => setF({ ...f, description: e.target.value })} placeholder="Describe what happened, where it is, when you noticed it and why it needs attention." />{err.description && <span className="field-error" role="alert">{err.description}</span>}</label>
       <label className="field-label">Priority <span>*</span><select value={f.priority} onChange={e => setF({ ...f, priority: e.target.value })}>{PRIORITIES.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}</select></label>
+      <div className="form-section-title form-section-spaced"><span>02</span><div><h2>Category & location</h2><p>What kind of issue is it, where is it, and when did it happen?</p></div></div>
+      <WhereFields w={f} setW={v => setF({ ...f, ...v })} err={err} />
       <div className="privacy-callout form-privacy"><Clock3 size={20} /><div><strong>Resolution deadlines</strong><p>Deadline depends on priority: urgent 8 hours, high 24 hours, medium 48 hours, low 72 hours.</p></div></div>
       {err.form && <p className="field-error" role="alert">{err.form}</p>}
       <div className="form-actions"><span><span className="required-star">*</span> Required fields</span><button className="button button-primary" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Submit report'} <ArrowRight size={17} /></button></div>
@@ -100,23 +189,29 @@ export function NewComplaintPage() {
 
 export function TrackPage() {
   const { user } = useAuth()
-  const [id, setId] = useState('')
+  const [params] = useSearchParams()
+  const [id, setId] = useState(params.get('id') ?? '')
+  const [code, setCode] = useState(params.get('code') ?? '')
   const [res, setRes] = useState<Ticket>()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  if (!user) return <NeedLogin what="Sign in to look up the status of your tickets." />
-  const go = async (e: FormEvent) => {
-    e.preventDefault(); setError(''); setRes(undefined)
-    if (!/^\d+$/.test(id)) { setError('Enter your ticket number (digits only).'); return }
+  const lookup = async (tid: string, tcode: string) => {
+    setError(''); setRes(undefined)
+    if (!/^\d+$/.test(tid)) { setError('Enter your ticket number (digits only).'); return }
+    if (!user && !tcode.trim()) { setError('Enter the tracking code you received with your ticket.'); return }
     setBusy(true)
-    try { setRes(await api.complaint(id)) } catch (er: any) { setError(er.status === 404 ? 'We could not find that ticket in your account.' : er.message) }
+    try { setRes(user ? await api.complaint(tid) : await api.trackGuest(tid, tcode)) }
+    catch (er: any) { setError(er.status === 404 ? (user ? 'We could not find that ticket in your account.' : 'No ticket matches that number and tracking code.') : er.message) }
     setBusy(false)
   }
-  return <div className="public-page form-page track-page"><div className="track-art"><span className="track-art-icon"><Search size={28} /></span><div className="track-orbit orbit-a" /><div className="track-orbit orbit-b" /><span className="track-star">✦</span></div><span className="eyebrow">TICKET TRACKING</span><h1>Progress, without <em>the guesswork.</em></h1><p className="lead">Enter the ticket number you received when the complaint was submitted.</p>
-    <form className="tracking-form" onSubmit={go} noValidate><label className="field-label">Ticket number<input value={id} inputMode="numeric" onChange={e => setId(e.target.value.trim())} placeholder="e.g. 12" autoComplete="off" /></label><button className="button button-primary button-large" type="submit" disabled={busy}>{busy ? 'Checking…' : 'Check status'} <ArrowRight size={17} /></button><span className="tracking-hint"><LockKeyhole size={14} /> You can only look up tickets you are allowed to see.</span></form>
+  const go = (e: FormEvent) => { e.preventDefault(); lookup(id, code) }
+  // Report page theke link e ashle auto check
+  useEffect(() => { if (!user && params.get('id') && params.get('code')) lookup(params.get('id')!, params.get('code')!) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  return <div className="public-page form-page track-page"><div className="track-art"><span className="track-art-icon"><Search size={28} /></span><div className="track-orbit orbit-a" /><div className="track-orbit orbit-b" /><span className="track-star">✦</span></div><span className="eyebrow">TICKET TRACKING</span><h1>Progress, without <em>the guesswork.</em></h1><p className="lead">{user ? 'Enter the ticket number you received when the complaint was submitted.' : 'Enter the ticket number and tracking code you received when you reported without an account.'}</p>
+    <form className="tracking-form" onSubmit={go} noValidate><label className="field-label">Ticket number<input value={id} inputMode="numeric" onChange={e => setId(e.target.value.trim())} placeholder="e.g. 12" autoComplete="off" /></label>{!user && <label className="field-label">Tracking code<input value={code} maxLength={12} onChange={e => setCode(e.target.value.trim().toUpperCase())} placeholder="e.g. K7M2QX9P" autoComplete="off" /></label>}<button className="button button-primary button-large" type="submit" disabled={busy}>{busy ? 'Checking…' : 'Check status'} <ArrowRight size={17} /></button><span className="tracking-hint"><LockKeyhole size={14} /> {user ? 'You can only look up tickets you are allowed to see.' : 'Only someone with the code can see a ticket.'}</span></form>
     {error && <p className="field-error" role="alert" style={{ marginTop: 14 }}>{error}</p>}
-    {res && <section className="panel detail-panel" style={{ marginTop: 22, textAlign: 'left' }}><div className="panel-heading"><div><h2>#{res.id} · {res.title}</h2><p>Last update {res.updated}</p></div><StatusBadge status={res.status} /></div><div className="detail-facts"><div><span>Priority</span><strong><PriorityBadge priority={res.priority} /></strong></div><div><span>Assigned agent</span><strong>{res.agent ?? 'Not assigned yet'}</strong></div><div><span>Created</span><strong>{fmt(res.date)}</strong></div><div><span>SLA deadline</span><strong>{fmt(res.deadline)} · {slaState(res)}</strong></div></div></section>}
-    <div className="track-help"><CircleHelp size={18} /><span><strong>Can’t find your ticket number?</strong><br />Open My tickets in your workspace to see all of your tickets.</span></div>
+    {res && <section className="panel detail-panel" style={{ marginTop: 22, textAlign: 'left' }}><div className="panel-heading"><div><h2>#{res.id} · {res.title}</h2><p>Last update {res.updated}</p></div><StatusBadge status={res.status} /></div><div className="detail-facts"><div><span>Priority</span><strong><PriorityBadge priority={res.priority} /></strong></div><div><span>Assigned agent</span><strong>{res.agent ?? 'Not assigned yet'}</strong></div><div><span>Created</span><strong>{fmt(res.date)}</strong></div><div><span>SLA deadline</span><strong>{fmt(res.deadline)} · {slaState(res)}</strong></div><div><span>Category</span><strong>{res.categoryLabel}</strong></div><div><span>Ward</span><strong>{res.ward || '—'}</strong></div><div><span>Location</span><strong>{[res.road, res.location].filter(Boolean).join(', ') || '—'}</strong></div><div><span>Date of the issue</span><strong>{fmtDay(res.incidentDate || res.date)}</strong></div></div></section>}
+    <div className="track-help"><CircleHelp size={18} /><span>{user ? <><strong>Can’t find your ticket number?</strong><br />Open My tickets in your workspace to see all of your tickets.</> : <><strong>Reported with an account?</strong><br /><Link className="inline-link" to="/login">Sign in</Link> to see all of your tickets without a code.</>}</span></div>
   </div>
 }
 
@@ -126,7 +221,7 @@ export function ResolvedPage() {
   const s = useLoad(() => (user ? api.resolved() : Promise.resolve([] as Ticket[])), [user?.name])
   if (!user) return <NeedLogin what="Resolved tickets are available after you sign in." />
   return <div className="public-page listing-public"><span className="eyebrow">COMMUNITY PROGRESS</span><h1>Good work deserves <em>to be seen.</em></h1><p className="lead">Resolved and closed tickets visible to your account.</p><div className="listing-tools"><label className="search-field"><Search size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search resolved tickets" /></label></div>
-    <Async s={s} empty="No resolved tickets yet">{rows => { const f = rows.filter(c => `${c.title} ${c.summary}`.toLowerCase().includes(search.toLowerCase())); return f.length ? <div className="resolved-grid">{f.map(c => <article className="resolved-card" key={c.id}><span className="resolved-icon"><CheckCircle2 size={21} /></span><StatusBadge status={c.status} /><h3>{c.title}</h3><p>{c.summary.length > 110 ? c.summary.slice(0, 110) + '…' : c.summary}</p><div className="resolved-foot"><span><CalendarDays size={14} /> Reported {c.date}</span><span>#{c.id}</span></div></article>)}</div> : <div className="empty-state"><Search size={25} /><strong>No matching resolved tickets</strong><p>Try a different keyword.</p></div> }}</Async></div>
+    <Async s={s} empty="No resolved tickets yet">{rows => { const f = rows.filter(c => `${c.title} ${c.summary}`.toLowerCase().includes(search.toLowerCase())); return f.length ? <div className="resolved-grid">{f.map(c => <article className="resolved-card" key={c.id}><span className="resolved-icon"><CheckCircle2 size={21} /></span><StatusBadge status={c.status} /><h3>{c.title}</h3><p>{c.summary.length > 110 ? c.summary.slice(0, 110) + '…' : c.summary}</p><p className="resolved-meta"><MapPin size={13} />{c.categoryLabel}{c.ward ? ` · Ward ${c.ward}` : ''}</p><div className="resolved-foot"><span><CalendarDays size={14} /> Reported {c.date}</span><span>#{c.id}</span></div></article>)}</div> : <div className="empty-state"><Search size={25} /><strong>No matching resolved tickets</strong><p>Try a different keyword.</p></div> }}</Async></div>
 }
 
 export function LoginPage() {
@@ -187,7 +282,7 @@ export function RegisterPage() {
     </form></div>
 }
 
-const heading = { citizen: ['YOUR CITY CONNECT', 'Your tickets, at a glance.', 'The reports you are following.'], agent: ['SERVICE DELIVERY', 'Let’s keep things moving.', 'Tickets assigned to you.'], admin: ['ADMINISTRATION', 'The platform, in good order.', 'All tickets in the system.'] } as Record<Role, string[]>
+const heading = { citizen: ['YOUR CITY CONNECT', 'Your tickets, at a glance.', 'The reports you are following.'], agent: ['SERVICE DELIVERY', 'Let’s keep things moving.', 'Tickets assigned to you.'], admin: ['ADMINISTRATION', 'The platform, in good order.', 'All tickets in the system.'], mayor: ['MAYOR’S OFFICE', 'The whole city, at a glance.', 'Every ticket in the city. View-only access.'] } as Record<Role, string[]>
 
 export function DashboardPage({ role }: { role: Role }) {
   const sum = useLoad(api.summary)
@@ -213,10 +308,39 @@ export function ComplaintsPage({ role }: { role: Role }) {
   const s = useLoad(api.complaints)
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('All statuses')
-  const titles: Record<Role, string> = { citizen: 'My tickets', agent: 'Assigned tickets', admin: 'All tickets' }
+  const [cat, setCat] = useState('All categories')
+  const [ward, setWard] = useState('All wards')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const titles: Record<Role, string> = { citizen: 'My tickets', agent: 'Assigned tickets', admin: 'All tickets', mayor: 'All tickets' }
+  const wards = Array.from(new Set((s.data ?? []).map(t => t.ward).filter(Boolean))).sort((x, y) => x.localeCompare(y, undefined, { numeric: true }))
+  const reset = () => { setQ(''); setStatus('All statuses'); setCat('All categories'); setWard('All wards'); setFrom(''); setTo('') }
   return <div className="dashboard-page"><div className="page-heading-row"><div><span className="eyebrow">{roleNames[role].toUpperCase()} WORKSPACE</span><h1>{titles[role]}</h1><p>{heading[role][2]}</p></div>{role === 'citizen' && <Link to="/complaints/new" className="button button-primary"><Plus size={16} /> New report</Link>}</div>
-    <section className="panel list-panel"><div className="list-toolbar"><label className="search-field"><Search size={17} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by subject, description or number" /></label><label className="select-filter"><Filter size={15} /><select value={status} onChange={e => setStatus(e.target.value)}><option>All statuses</option>{STATUSES.map(x => <option key={x} value={x}>{x.replace('_', ' ')}</option>)}</select></label><button className="button button-outline button-sm" onClick={() => { setQ(''); setStatus('All statuses') }}>Reset</button></div>
-      <Async s={s} empty={role === 'agent' ? 'No tickets are assigned to you yet' : 'No tickets yet'}>{rows => { const f = rows.filter(c => `${c.title} ${c.summary} ${c.id}`.toLowerCase().includes(q.toLowerCase()) && (status === 'All statuses' || c.status === status)); return <><div className="list-count"><span>Showing <strong>{f.length}</strong> of {rows.length} tickets</span></div>{f.length ? <ComplaintTable rows={f} base={base(role)} /> : <div className="empty-state"><Search size={25} /><strong>No tickets match these filters</strong></div>}</> }}</Async></section></div>
+    <section className="panel list-panel"><div className="list-toolbar"><label className="search-field"><Search size={17} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by subject, place, road or number" /></label>
+      <label className="select-filter"><Filter size={15} /><select value={status} onChange={e => setStatus(e.target.value)}><option>All statuses</option>{STATUSES.map(x => <option key={x} value={x}>{x.replace('_', ' ')}</option>)}</select></label>
+      <label className="select-filter"><select value={cat} onChange={e => setCat(e.target.value)}><option>All categories</option>{CATEGORIES.map(x => <option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
+      <label className="select-filter"><MapPin size={15} /><select value={ward} onChange={e => setWard(e.target.value)}><option>All wards</option>{wards.map(w => <option key={w} value={w}>Ward {w}</option>)}</select></label>
+      <label className="date-filter">From<input type="date" value={from} max={to || undefined} onChange={e => setFrom(e.target.value)} /></label>
+      <label className="date-filter">To<input type="date" value={to} min={from || undefined} onChange={e => setTo(e.target.value)} /></label>
+      <button className="button button-outline button-sm" onClick={reset}>Reset</button></div>
+      <Async s={s} empty={role === 'agent' ? 'No tickets are assigned to you yet' : 'No tickets yet'}>{rows => { const f = rows.filter(c => { const day = c.incidentDate || c.date; return `${c.title} ${c.summary} ${c.id} ${c.location} ${c.road} ${c.ward}`.toLowerCase().includes(q.toLowerCase()) && (status === 'All statuses' || c.status === status) && (cat === 'All categories' || c.category === cat) && (ward === 'All wards' || c.ward === ward) && (!from || day >= from) && (!to || day <= to) }); return <><div className="list-count"><span>Showing <strong>{f.length}</strong> of {rows.length} tickets</span></div>{f.length ? <ComplaintTable rows={f} base={base(role)} /> : <div className="empty-state"><Search size={25} /><strong>No tickets match these filters</strong></div>}</> }}</Async></section></div>
+}
+
+/** Agent / admin: report er category, location, road, ward, date thik korar form (Mayor eta dekhe na) */
+function DetailsEditor({ c, busy, run }: { c: Ticket; busy: boolean; run: (fn: () => Promise<unknown>, ok: string) => () => Promise<void> }) {
+  const orig: ReportWhere = { category: c.category, location: c.location, road: c.road, ward: c.ward, incident_date: c.incidentDate }
+  const [d, setD] = useState<ReportWhere>(orig)
+  const changed: Partial<ReportWhere> = {}
+  for (const k of Object.keys(d) as (keyof ReportWhere)[]) if (d[k].trim() !== orig[k]) changed[k] = d[k].trim()
+  const dirty = Object.keys(changed).length > 0
+  const bad = (changed.location !== undefined && changed.location.length < 3) || (changed.ward !== undefined && !changed.ward) || (!!changed.incident_date && changed.incident_date > today())
+  return <div className="edit-details"><h4>Report details</h4>
+    <label className="field-label">Category<select value={d.category} onChange={e => setD({ ...d, category: e.target.value })}>{CATEGORIES.map(x => <option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
+    <label className="field-label">Location / landmark<input value={d.location} maxLength={255} onChange={e => setD({ ...d, location: e.target.value })} /></label>
+    <div className="form-two-col"><label className="field-label">Road<input value={d.road} maxLength={150} onChange={e => setD({ ...d, road: e.target.value })} /></label><label className="field-label">Ward<input value={d.ward} maxLength={50} onChange={e => setD({ ...d, ward: e.target.value })} /></label></div>
+    <label className="field-label">Date of the issue<input type="date" max={today()} value={d.incident_date} onChange={e => setD({ ...d, incident_date: e.target.value })} /></label>
+    <button className="button button-primary auth-submit" disabled={busy || !dirty || bad} onClick={run(() => api.updateDetails(c.id, changed), 'Report details updated.')}>Save details <Check size={16} /></button>
+  </div>
 }
 
 export function ComplaintDetailPage({ role }: { role: Role }) {
@@ -228,7 +352,7 @@ export function ComplaintDetailPage({ role }: { role: Role }) {
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const staff = role !== 'citizen'
+  const canManage = role === 'agent' || role === 'admin'
   const act = (fn: () => Promise<unknown>, ok: string) => async () => {
     setBusy(true); setMsg(''); setErr('')
     try { await fn(); setMsg(ok); setStatus(''); setPrio(''); setAgent(''); s.reload() } catch (e: any) { setErr(e.message) }
@@ -238,7 +362,7 @@ export function ComplaintDetailPage({ role }: { role: Role }) {
     <div className="page-heading-row"><div><Link className="back-link" to={base(role)}>← Back to tickets</Link><span className="eyebrow">TICKET DETAILS · #{c.id}</span><h1>{c.title}</h1><p>Submitted by {c.customer} on {fmt(c.date)}.</p></div><StatusBadge status={c.status} /></div>
     <div className="detail-layout"><div className="detail-main">
       <section className="panel detail-panel"><div className="panel-heading"><div><h2>Ticket summary</h2><p>Details of this report.</p></div><PriorityBadge priority={c.priority} /></div>
-        <div className="detail-facts"><div><span>Ticket number</span><strong>#{c.id}</strong></div><div><span>Assigned agent</span><strong>{c.agent ?? 'Not assigned yet'}</strong></div><div><span>SLA deadline</span><strong><Clock3 size={15} />{fmt(c.deadline)}</strong></div><div><span>SLA status</span><strong className={isOverdue(c) ? 'sla-bad' : ''}>{slaState(c)}</strong></div></div>
+        <div className="detail-facts"><div><span>Ticket number</span><strong>#{c.id}</strong></div><div><span>Assigned agent</span><strong>{c.agent ?? 'Not assigned yet'}</strong></div><div><span>SLA deadline</span><strong><Clock3 size={15} />{fmt(c.deadline)}</strong></div><div><span>SLA status</span><strong className={isOverdue(c) ? 'sla-bad' : ''}>{slaState(c)}</strong></div><div><span>Category</span><strong>{c.categoryLabel}</strong></div><div><span>Ward</span><strong>{c.ward || '—'}</strong></div><div><span>Road</span><strong>{c.road || '—'}</strong></div><div><span>Date of the issue</span><strong>{fmtDay(c.incidentDate || c.date)}</strong></div><div><span>Location</span><strong>{c.location || '—'}</strong></div></div>
         <div className="detail-description"><h3>Description</h3><p style={{ whiteSpace: 'pre-wrap' }}>{c.summary}</p></div></section>
       <section className="panel timeline-panel"><div className="panel-heading"><div><h2>Progress timeline</h2><p>Where this ticket is now.</p></div></div><div className="timeline">
         <div className="timeline-item done"><span><Check size={14} /></span><div><strong>Ticket created</strong><p>The report was received by City Connect.</p><small>{fmt(c.date)}</small></div></div>
@@ -247,17 +371,19 @@ export function ComplaintDetailPage({ role }: { role: Role }) {
         {c.resolvedAt && <div className="timeline-item done"><span><Check size={14} /></span><div><strong>Resolved</strong><small>{fmt(c.resolvedAt)}</small></div></div>}
       </div></section></div>
       <aside className="detail-side">
-        <section className="panel side-info"><span className="side-info-icon"><ShieldCheck size={20} /></span><h3>Who can see this</h3><p>Citizens see only their own tickets. Agents see tickets assigned to them. Administrators see everything. The server enforces this.</p></section>
-        {staff && <section className="panel update-panel"><span className="eyebrow">MANAGE TICKET</span><h3>Update this ticket</h3>
+        <section className="panel side-info"><span className="side-info-icon"><ShieldCheck size={20} /></span><h3>Who can see this</h3><p>Citizens see only their own tickets. Agents see tickets assigned to them. Administrators and the Mayor see everything, and the Mayor cannot change anything. The server enforces this.</p></section>
+        {canManage && <section className="panel update-panel"><span className="eyebrow">MANAGE TICKET</span><h3>Update this ticket</h3>
           <label className="field-label">Status<select value={status || c.status} onChange={e => setStatus(e.target.value)}>{STATUSES.map(x => <option key={x} value={x}>{x.replace('_', ' ')}</option>)}</select></label>
           <button className="button button-primary auth-submit" disabled={busy || !status || status === c.status} onClick={act(() => api.setStatus(c.id, status), 'Status updated.')}>Update status <Check size={16} /></button>
           <label className="field-label">Priority<select value={prio || c.priority} onChange={e => setPrio(e.target.value)}>{PRIORITIES.map(x => <option key={x} value={x}>{x.charAt(0).toUpperCase() + x.slice(1)}</option>)}</select></label>
           <button className="button button-primary auth-submit" disabled={busy || !prio || prio === c.priority} onClick={act(() => api.setPriority(c.id, prio), 'Priority updated.')}>Update priority <Check size={16} /></button>
           {role === 'admin' && <><label className="field-label">Assign to support agent (agent user ID)<input inputMode="numeric" value={agent} onChange={e => setAgent(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 2" /></label>
             <button className="button button-primary auth-submit" disabled={busy || !agent} onClick={act(() => api.assign(c.id, Number(agent)), 'Ticket assigned.')}>Assign ticket <Users size={16} /></button></>}
+          <DetailsEditor key={c.id} c={c} busy={busy} run={act} />
           {msg && <div className="inline-result compact-result" role="status"><CheckCircle2 size={17} /><div><strong>{msg}</strong></div></div>}
           {err && <div className="inline-result compact-result" role="alert"><AlertCircle size={17} /><div><strong>Could not save</strong><p>{err}</p></div></div>}
         </section>}
+        {role === 'mayor' && <section className="panel side-info"><span className="side-info-icon"><Eye size={20} /></span><h3>View-only access</h3><p>The Mayor can see every ticket but cannot change its status, priority or assignment. Agents and administrators handle those updates.</p></section>}
       </aside></div></>}</Async></div>
 }
 
@@ -269,7 +395,23 @@ export function DeadlinesPage({ role }: { role: Role }) {
 
 export function ProfilePage() {
   const { user } = useAuth()
-  return <div className="dashboard-page"><div className="page-heading-row"><div><span className="eyebrow">ACCOUNT</span><h1>My profile</h1><p>Your City Connect account.</p></div></div><div className="profile-layout"><section className="panel profile-card"><div className="profile-cover" /><div className="profile-identity"><div className="profile-avatar">{user?.name.slice(0, 1).toUpperCase()}</div><div><h2>{user?.name}</h2><p>{user ? roleNames[user.role] : ''} account</p></div></div><div className="profile-form"><label className="field-label">Username<input value={user?.name ?? ''} readOnly /></label><label className="field-label">Role<input value={user ? roleNames[user.role] : ''} readOnly /></label><p className="muted-text">Profile editing is not available yet.</p></div></section><aside className="panel side-info"><ShieldCheck size={22} /><h3>Your account, your reports</h3><p>Citizen accounts only access their own tickets. Staff roles are assigned by an administrator.</p></aside></div></div>
+  const me = useLoad(api.me)
+  const m = me.data
+  const full = m ? `${m.first_name} ${m.last_name}`.trim() : ''
+  const note: Record<Role, string> = {
+    citizen: 'Citizen accounts only access their own tickets.',
+    agent: 'Agents work on the tickets assigned to them. Share your User ID with an administrator so tickets can be assigned to you.',
+    admin: 'Administrators see every ticket, assign agents and manage priorities.',
+    mayor: 'The Mayor can see every ticket and report in the city, with view-only access.',
+  }
+  return <div className="dashboard-page"><div className="page-heading-row"><div><span className="eyebrow">ACCOUNT</span><h1>My profile</h1><p>Your City Connect account.</p></div></div><div className="profile-layout"><section className="panel profile-card"><div className="profile-cover" /><div className="profile-identity"><div className="profile-avatar">{user?.name.slice(0, 1).toUpperCase()}</div><div><h2>{full || user?.name}</h2><p>{user ? roleNames[user.role] : ''} account</p></div></div><div className="profile-form">
+    <label className="field-label">Username<input value={user?.name ?? ''} readOnly /></label>
+    {full && <label className="field-label">Full name<input value={full} readOnly /></label>}
+    {m?.email && <label className="field-label">Email<input value={m.email} readOnly /></label>}
+    <label className="field-label">Role<input value={user ? roleNames[user.role] : ''} readOnly /></label>
+    {m && <label className="field-label">User ID<input value={String(m.id)} readOnly /></label>}
+    {me.error && <p className="muted-text">Some account details could not be loaded.</p>}
+    <p className="muted-text">Profile editing is not available yet.</p></div></section><aside className="panel side-info"><ShieldCheck size={22} /><h3>Your account</h3><p>{user ? note[user.role] : ''} Staff roles are assigned by an administrator.</p></aside></div></div>
 }
 
 export function NotificationsPage() {

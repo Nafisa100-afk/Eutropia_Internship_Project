@@ -15,4 +15,8 @@ Base: `/api` (Vite proxy -> http://127.0.0.1:8000). Auth: `Authorization: Bearer
 | Notifications | GET /api/notifications/ |
 | Activity log | GET /api/logs/ |
 
-Role mapping: customer -> citizen, agent -> agent, admin -> admin. Backend-e "me" endpoint nai, tai role `detectRole()` (src/lib/api.ts) diye probe kore bojha hoy.
+Report fields (all endpoints that create/return a ticket): `category` (roads | drainage | waste | lighting | other), `category_display`, `location`, `road`, `ward`, `incident_date` (YYYY-MM-DD, not in the future). `location` and `ward` are required when a ticket is created (`POST /api/tickets/tickets/` and `POST /api/tickets/tickets/guest/`).
+
+| Staff edit report details (agent/admin) | PATCH /api/tickets/tickets/{id}/update_details/ {category?,location?,road?,ward?,incident_date?} |
+
+Role mapping: customer -> citizen, agent -> agent, admin -> admin, mayor -> mayor (view-only). Backend-e "me" endpoint nai, tai role `detectRole()` (src/lib/api.ts) diye probe kore bojha hoy.
