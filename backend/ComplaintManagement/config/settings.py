@@ -161,6 +161,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "guest_submit": "10/hour",
         "guest_track": "60/hour",
+        "public_list": "300/hour",
     },
 }
 AUTH_USER_MODEL = "accounts.User"

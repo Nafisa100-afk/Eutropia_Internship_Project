@@ -168,6 +168,16 @@ export const api = {
     return { ...fromTicket(t), ...(s ? { deadline: s.deadline, breached: s.is_breached } : {}) }
   },
   async resolved(): Promise<Ticket[]> { return (await api.complaints()).filter(t => DONE.includes(t.status)) },
+  // Login chhara dekha jay: homepage / resolved page e shobar report. Reporter er private info (naam, email, phone) ashe na.
+  publicReports: (p: { category?: string; status?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams()
+    if (p.category) q.set('category', p.category)
+    if (p.status) q.set('status', p.status)
+    if (p.limit) q.set('limit', String(p.limit))
+    const qs = q.toString()
+    return request<any[]>(`/tickets/tickets/public/${qs ? '?' + qs : ''}`, {}, { auth: false })
+      .then(rows => rows.map(t => fromTicket({ ...t, customer_name: 'Resident' })))
+  },
   submit: (b: { subject: string; description: string; priority: string } & ReportWhere) =>
     request<any>('/tickets/tickets/', body({ ...b, incident_date: b.incident_date || null })).then(fromTicket),
   // Sign up chhara report (guest). Login lage na, tai auth: false.

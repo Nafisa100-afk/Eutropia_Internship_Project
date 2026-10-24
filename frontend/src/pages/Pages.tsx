@@ -10,6 +10,7 @@ import { useLoad, Async } from '../hooks'
 import ComplaintTable from '../components/ComplaintTable'
 import StatusBadge, { PriorityBadge } from '../components/StatusBadge'
 import Brand from '../components/Brand'
+import PublicReports, { CATEGORY_ICON } from '../components/PublicReports'
 
 const categories = [
   { name: 'Roads & footpaths', detail: 'Potholes, damaged sidewalks and street surfaces', icon: Construction, color: 'peach' },
@@ -43,6 +44,10 @@ export function HomePage() {
     <section className="intro-strip"><div><span className="eyebrow">A BETTER WAY TO CONNECT</span><h2>Small reports.<br /><em>Meaningful change.</em></h2></div><p>City Connect brings residents and city service teams into one simple process. Share what needs attention, get a ticket number, and follow progress without the guesswork.</p><Link className="text-arrow" to="/about">How it works <ArrowRight size={16} /></Link></section>
     <section className="services-section"><div className="section-heading"><div><span className="eyebrow">WHAT NEEDS ATTENTION?</span><h2>Let’s take care of <em>our neighbourhood.</em></h2></div><p>Pick what needs attention to get started. Add a clear description and a priority when reporting.</p></div>
       <div className="service-grid">{categories.map((cat, i) => { const Icon = cat.icon; return <Link to="/complaints/new" key={cat.name} className={`service-card service-${cat.color}`}><span className="service-icon"><Icon size={22} /></span><span className="service-index">0{i+1}</span><h3>{cat.name}</h3><p>{cat.detail}</p><span className="service-arrow"><ArrowUpRight size={18} /></span></Link> })}</div>
+    </section>
+    <section className="reports-section"><div className="section-heading"><div><span className="eyebrow">LIVE FROM THE COMMUNITY</span><h2>What neighbours are <em>reporting.</em></h2></div><p>Every report is visible here, so everyone can see what needs attention and how it is going. Filter by the kind of problem.</p></div>
+      <PublicReports limit={6} />
+      <div className="reports-more"><Link className="text-arrow" to="/reports">See all community reports <ArrowRight size={16} /></Link></div>
     </section>
     <section className="steps-section"><div className="steps-intro"><span className="eyebrow">SIMPLE BY DESIGN</span><h2>From concern to <em>clear next steps.</em></h2><p>Reporting should feel straightforward. Here’s how City Connect keeps the process easy to follow.</p><Link className="text-arrow" to="/track">Already reported an issue? Track it <ArrowRight size={16} /></Link></div>
       <div className="steps-list"><div className="step-item"><span>01</span><div><h3>Tell us what’s happening</h3><p>Share a clear subject and description, and choose a priority.</p></div><FileText size={21} /></div><div className="step-item"><span>02</span><div><h3>Keep your ticket number</h3><p>Use it to check the status of your ticket any time.</p></div><Search size={21} /></div><div className="step-item"><span>03</span><div><h3>Follow the progress</h3><p>See when a ticket is assigned, underway, or resolved.</p></div><CheckCircle2 size={21} /></div></div>
@@ -215,13 +220,14 @@ export function TrackPage() {
   </div>
 }
 
+export function ReportsPage() {
+  return <div className="public-page listing-public"><span className="eyebrow">COMMUNITY REPORTS</span><h1>Every report, <em>in the open.</em></h1><p className="lead">See what residents have reported and how it is going. Pick a category to see only roads, drainage, waste or street lighting problems.</p>
+    <PublicReports searchable syncUrl /></div>
+}
+
 export function ResolvedPage() {
-  const { user } = useAuth()
-  const [search, setSearch] = useState('')
-  const s = useLoad(() => (user ? api.resolved() : Promise.resolve([] as Ticket[])), [user?.name])
-  if (!user) return <NeedLogin what="Resolved tickets are available after you sign in." />
-  return <div className="public-page listing-public"><span className="eyebrow">COMMUNITY PROGRESS</span><h1>Good work deserves <em>to be seen.</em></h1><p className="lead">Resolved and closed tickets visible to your account.</p><div className="listing-tools"><label className="search-field"><Search size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search resolved tickets" /></label></div>
-    <Async s={s} empty="No resolved tickets yet">{rows => { const f = rows.filter(c => `${c.title} ${c.summary}`.toLowerCase().includes(search.toLowerCase())); return f.length ? <div className="resolved-grid">{f.map(c => <article className="resolved-card" key={c.id}><span className="resolved-icon"><CheckCircle2 size={21} /></span><StatusBadge status={c.status} /><h3>{c.title}</h3><p>{c.summary.length > 110 ? c.summary.slice(0, 110) + '…' : c.summary}</p><p className="resolved-meta"><MapPin size={13} />{c.categoryLabel}{c.ward ? ` · Ward ${c.ward}` : ''}</p><div className="resolved-foot"><span><CalendarDays size={14} /> Reported {c.date}</span><span>#{c.id}</span></div></article>)}</div> : <div className="empty-state"><Search size={25} /><strong>No matching resolved tickets</strong><p>Try a different keyword.</p></div> }}</Async></div>
+  return <div className="public-page listing-public"><span className="eyebrow">COMMUNITY PROGRESS</span><h1>Good work deserves <em>to be seen.</em></h1><p className="lead">Reports that have been resolved or closed. Open to everyone, no sign in needed.</p>
+    <PublicReports mode="done" searchable syncUrl /></div>
 }
 
 export function LoginPage() {
@@ -284,6 +290,17 @@ export function RegisterPage() {
 
 const heading = { citizen: ['YOUR CITY CONNECT', 'Your tickets, at a glance.', 'The reports you are following.'], agent: ['SERVICE DELIVERY', 'Let’s keep things moving.', 'Tickets assigned to you.'], admin: ['ADMINISTRATION', 'The platform, in good order.', 'All tickets in the system.'], mayor: ['MAYOR’S OFFICE', 'The whole city, at a glance.', 'Every ticket in the city. View-only access.'] } as Record<Role, string[]>
 
+/** Mayor / admin: shob report category onujayi, ekta card e click korle shudhu oi category er report dekhay */
+function CategoryOverview({ role, rows }: { role: Role; rows: Ticket[] }) {
+  return <section className="panel category-overview"><div className="panel-heading"><div><h2>Reports by category</h2><p>Tap a category to see only those problems: roads, drainage, waste, street lighting and more.</p></div></div>
+    <div className="cat-cards">{CATEGORIES.map(c => {
+      const mine = rows.filter(r => r.category === c.value)
+      const done = mine.filter(r => DONE.includes(r.status)).length
+      const Icon = CATEGORY_ICON[c.value]
+      return <Link key={c.value} className={`cat-card cat-${c.value}`} to={`${base(role)}?category=${c.value}`}><span className="cat-card-icon"><Icon size={20} /></span><strong>{c.label}</strong><span className="cat-card-num">{mine.length}</span><small>{mine.length - done} active · {done} resolved</small></Link>
+    })}</div></section>
+}
+
 export function DashboardPage({ role }: { role: Role }) {
   const sum = useLoad(api.summary)
   const list = useLoad(api.complaints)
@@ -299,6 +316,7 @@ export function DashboardPage({ role }: { role: Role }) {
     {sum.error ? <div className="inline-result" role="alert"><AlertCircle size={18} /><div><strong>Could not load the summary</strong><p>{sum.error}</p></div></div> :
       <div className="metric-grid">{cards.map((c, i) => <article className="metric-card" key={c.label}><div className="metric-top"><span>{c.label}</span><span className={`metric-icon metric-${c.tone}`}>{i === 0 ? <FileText size={18} /> : i === 1 ? <Clock3 size={18} /> : i === 2 ? <CheckCircle2 size={18} /> : <TrendingUp size={18} />}</span></div><strong className="metric-value">{c.value}</strong><span className="metric-note">{c.note}</span></article>)}</div>}
     <Async s={list} empty="No tickets yet">{rows => { const t = trendOf(rows); const pr = [...PRIORITIES].reverse().map(p => ({ name: p.charAt(0).toUpperCase() + p.slice(1), value: rows.filter(r => r.priority === p).length })); return <>
+      {(role === 'mayor' || role === 'admin') && <CategoryOverview role={role} rows={rows} />}
       <div className="dashboard-grid"><section className="panel chart-panel"><div className="panel-heading"><div><h2>Ticket activity</h2><p>Tickets received and resolved per month</p></div><span className="chart-period">Last 6 months</span></div><div className="chart-area"><ResponsiveContainer width="100%" height="100%"><AreaChart data={t} margin={{ top: 12, right: 8, left: -18, bottom: 0 }}><defs><linearGradient id="receivedFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2D7772" stopOpacity={0.22} /><stop offset="100%" stopColor="#2D7772" stopOpacity={0.01} /></linearGradient><linearGradient id="resolvedFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#D47A5D" stopOpacity={0.18} /><stop offset="100%" stopColor="#D47A5D" stopOpacity={0.01} /></linearGradient></defs><CartesianGrid stroke="#eee7df" vertical={false} strokeDasharray="3 5" /><XAxis dataKey="m" tickLine={false} axisLine={false} tick={{ fill: '#91887f', fontSize: 12 }} /><YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: '#91887f', fontSize: 12 }} /><Tooltip contentStyle={{ borderRadius: 12, borderColor: '#e7ded4', fontSize: 12 }} /><Area type="monotone" dataKey="received" name="Received" stroke="#2D7772" strokeWidth={2.5} fill="url(#receivedFill)" /><Area type="monotone" dataKey="resolved" name="Resolved" stroke="#D47A5D" strokeWidth={2.5} fill="url(#resolvedFill)" /></AreaChart></ResponsiveContainer></div></section>
         <section className="panel category-panel"><div className="panel-heading"><div><h2>By priority</h2><p>Your tickets by priority</p></div></div><div className="category-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={pr} layout="vertical" margin={{ left: -16, right: 8, top: 4, bottom: 0 }}><XAxis type="number" hide /><YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={70} tick={{ fill: '#716961', fontSize: 11 }} /><Tooltip cursor={{ fill: '#f8f3ee' }} /><Bar dataKey="value" name="Tickets" fill="#2D7772" radius={[0, 5, 5, 0]} barSize={13} /></BarChart></ResponsiveContainer></div></section></div>
       <section className="panel recent-panel"><div className="panel-heading"><div><h2>Recent tickets</h2><p>The latest tickets in your workspace.</p></div><Link className="text-arrow" to={base(role)}>View all <ArrowRight size={15} /></Link></div><ComplaintTable rows={rows.slice(0, 5)} base={base(role)} compact /></section></> }}</Async></div>
@@ -308,7 +326,10 @@ export function ComplaintsPage({ role }: { role: Role }) {
   const s = useLoad(api.complaints)
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('All statuses')
-  const [cat, setCat] = useState('All categories')
+  const [sp, setSp] = useSearchParams()
+  const catParam = sp.get('category') || ''
+  const cat = CATEGORIES.some(c => c.value === catParam) ? catParam : 'All categories'
+  const setCat = (v: string) => { const n = new URLSearchParams(sp); if (v === 'All categories') n.delete('category'); else n.set('category', v); setSp(n, { replace: true }) }
   const [ward, setWard] = useState('All wards')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -316,7 +337,8 @@ export function ComplaintsPage({ role }: { role: Role }) {
   const wards = Array.from(new Set((s.data ?? []).map(t => t.ward).filter(Boolean))).sort((x, y) => x.localeCompare(y, undefined, { numeric: true }))
   const reset = () => { setQ(''); setStatus('All statuses'); setCat('All categories'); setWard('All wards'); setFrom(''); setTo('') }
   return <div className="dashboard-page"><div className="page-heading-row"><div><span className="eyebrow">{roleNames[role].toUpperCase()} WORKSPACE</span><h1>{titles[role]}</h1><p>{heading[role][2]}</p></div>{role === 'citizen' && <Link to="/complaints/new" className="button button-primary"><Plus size={16} /> New report</Link>}</div>
-    <section className="panel list-panel"><div className="list-toolbar"><label className="search-field"><Search size={17} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by subject, place, road or number" /></label>
+    <section className="panel list-panel"><div className="chip-row panel-chips" role="group" aria-label="Filter tickets by category">{[{ value: 'All categories', label: 'All' }, ...CATEGORIES].map(c => { const Icon = CATEGORY_ICON[c.value]; const n = (s.data ?? []).filter(t => c.value === 'All categories' || t.category === c.value).length; return <button key={c.value} type="button" aria-pressed={cat === c.value} className={`chip ${cat === c.value ? 'active' : ''}`} onClick={() => setCat(c.value)}>{Icon && <Icon size={14} />}{c.label}<b>{n}</b></button> })}</div>
+      <div className="list-toolbar"><label className="search-field"><Search size={17} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by subject, place, road or number" /></label>
       <label className="select-filter"><Filter size={15} /><select value={status} onChange={e => setStatus(e.target.value)}><option>All statuses</option>{STATUSES.map(x => <option key={x} value={x}>{x.replace('_', ' ')}</option>)}</select></label>
       <label className="select-filter"><select value={cat} onChange={e => setCat(e.target.value)}><option>All categories</option>{CATEGORIES.map(x => <option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
       <label className="select-filter"><MapPin size={15} /><select value={ward} onChange={e => setWard(e.target.value)}><option>All wards</option>{wards.map(w => <option key={w} value={w}>Ward {w}</option>)}</select></label>

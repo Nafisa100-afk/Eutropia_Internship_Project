@@ -155,3 +155,38 @@ class TicketDetailsSerializer(serializers.ModelSerializer):
 
     def validate_incident_date(self, value):
         return validate_not_future(value)
+
+
+class PublicTicketSerializer(serializers.ModelSerializer):
+    """Homepage / public list er jonno. Reporter er naam, email, phone, agent kichu dei na.
+
+    Description chhoto kore dei, jate keu bhul kore personal info likhle shob public na hoy.
+    """
+
+    category_display = serializers.CharField(
+        source="get_category_display", read_only=True
+    )
+    description = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Ticket
+        fields = [
+            "id",
+            "subject",
+            "description",
+            "category",
+            "category_display",
+            "location",
+            "road",
+            "ward",
+            "incident_date",
+            "priority",
+            "status",
+            "created_at",
+            "resolved_at",
+        ]
+        read_only_fields = fields
+
+    def get_description(self, obj):
+        text = (obj.description or "").strip()
+        return text if len(text) <= 200 else text[:200].rstrip() + "…"

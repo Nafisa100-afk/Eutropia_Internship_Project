@@ -4,7 +4,7 @@ import type { Role } from './lib/api'
 import AppShell from './components/AppShell'
 import PublicLayout from './components/PublicLayout'
 import { Protected } from './auth'
-import { AboutPage, ActivityPage, ComplaintDetailPage, ComplaintsPage, DashboardPage, DeadlinesPage, HomePage, LoginPage, NewComplaintPage, NotificationsPage, NotFoundPage, ProfilePage, RegisterPage, ResolvedPage, TrackPage, UnauthorizedPage } from './pages/Pages'
+import { AboutPage, ActivityPage, ComplaintDetailPage, ComplaintsPage, DashboardPage, DeadlinesPage, HomePage, LoginPage, NewComplaintPage, NotificationsPage, NotFoundPage, ProfilePage, RegisterPage, ReportsPage, ResolvedPage, TrackPage, UnauthorizedPage } from './pages/Pages'
 
 const area = (role: Role, extra: ReactNode = null) => (
   <Route path={`/${role}`} element={<Protected allowed={[role]}><AppShell /></Protected>}>
@@ -26,6 +26,7 @@ export default function App() {
       <Route path="/about" element={<AboutPage />} />
       <Route path="/complaints/new" element={<NewComplaintPage />} />
       <Route path="/track" element={<TrackPage />} />
+      <Route path="/reports" element={<ReportsPage />} />
       <Route path="/resolved-complaints" element={<ResolvedPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />

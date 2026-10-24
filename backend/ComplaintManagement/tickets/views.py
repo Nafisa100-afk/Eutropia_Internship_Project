@@ -18,14 +18,23 @@ from sla.models import SLA
 
 from .models import Ticket
 from .serializers import (
+    CATEGORY_VALUES,
     GuestTicketCreateSerializer,
     GuestTrackSerializer,
+    PublicTicketSerializer,
     TicketDetailsSerializer,
     TicketSerializer,
 )
-from .throttles import GuestSubmitThrottle, GuestTrackThrottle
+from .throttles import GuestSubmitThrottle, GuestTrackThrottle, PublicListThrottle
 
 SLA_HOURS = {"low": 72, "medium": 48, "high": 24, "urgent": 8}
+
+ALL_STATUSES = ["open", "assigned", "in_progress", "resolved", "closed"]
+# ?status=done / ?status=active moto shortcut
+STATUS_ALIASES = {
+    "done": ["resolved", "closed"],
+    "active": ["open", "assigned", "in_progress"],
+}
 
 # 0/O, 1/I confuse korte pare, tai bad
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -448,6 +457,51 @@ class TicketViewSet(viewsets.ModelViewSet):
             )
 
         return Response(TicketSerializer(ticket).data)
+
+    # ------------------------------------------------------------------
+    # Public report list (homepage / resolved page). Login lage na.
+    # GET /api/tickets/tickets/public/?category=roads&status=done&limit=100
+    # ------------------------------------------------------------------
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="public",
+        permission_classes=[AllowAny],
+        authentication_classes=[],
+        throttle_classes=[PublicListThrottle],
+    )
+    def public(self, request):
+        tickets = Ticket.objects.all().order_by("-created_at", "-id")
+
+        category = request.query_params.get("category", "").strip()
+        if category:
+            if category not in CATEGORY_VALUES:
+                return Response(
+                    {"detail": "Unknown category."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            tickets = tickets.filter(category=category)
+
+        status_param = request.query_params.get("status", "").strip().lower()
+        if status_param:
+            wanted = []
+            for part in status_param.split(","):
+                part = part.strip()
+                wanted += STATUS_ALIASES.get(part, [part])
+            if any(s not in ALL_STATUSES for s in wanted):
+                return Response(
+                    {"detail": "Unknown status."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            tickets = tickets.filter(status__in=wanted)
+
+        try:
+            limit = int(request.query_params.get("limit", 100))
+        except (TypeError, ValueError):
+            limit = 100
+        limit = max(1, min(limit, 200))
+
+        return Response(PublicTicketSerializer(tickets[:limit], many=True).data)
 
     # ------------------------------------------------------------------
     # Sign up chhara (guest) report ar track

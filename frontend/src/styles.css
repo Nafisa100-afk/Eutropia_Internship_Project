@@ -101,3 +101,38 @@ tbody td { font-size: 13px; }
 .list-toolbar input[type=date]{border:1px solid #ded4ca;border-radius:8px;background:#fffdfa;padding:0 8px;min-height:36px;font-size:12px;color:var(--ink)}.date-filter{display:flex;align-items:center;gap:6px;font-size:12px;color:#958a7e}
 .resolved-meta{display:flex;align-items:center;gap:5px;margin:10px 0 0;font-size:11px;color:#958a7e}
 .edit-details{border-top:1px solid #eee5dc;margin-top:6px;padding-top:14px;display:grid;gap:10px}.edit-details h4{margin:0;font-size:13px}
+
+/* ===== Community reports (public) + category filter chips ===== */
+.reports-section{padding:8px 0 72px}.reports-more{display:flex;justify-content:center;margin-top:24px}.public-reports{width:100%}
+.chip-row{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1px solid #ded4ca;border-radius:99px;background:#fffdfa;color:#5e554b;font-size:12px;font-weight:700;line-height:1.2;transition:background .18s ease,border-color .18s ease,color .18s ease}
+.chip svg{flex-shrink:0;color:var(--teal)}
+.chip b{display:inline-grid;place-items:center;min-width:20px;padding:2px 6px;border-radius:99px;background:#f1ece5;color:#7a7066;font-size:10px}
+.chip:hover{border-color:#b9a996;background:#fff}
+.chip.active{background:var(--teal);border-color:var(--teal);color:#fff}
+.chip.active svg{color:#fff}.chip.active b{background:rgba(255,255,255,.22);color:#fff}
+.panel-chips{padding:16px 18px 0;margin:0}
+.public-tools{margin:26px 0 16px}.public-tools .search-field{flex:1}
+.report-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.report-card{display:flex;flex-direction:column;padding:20px;background:#fffdfa;border:1px solid #e5dcd2;border-radius:14px;min-height:210px;transition:transform .18s ease,box-shadow .18s ease}
+.report-card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.report-card-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.report-card h3{font-size:15px;margin:0 0 8px}
+.report-text{flex:1;margin:0;font-size:12px;line-height:1.65;overflow-wrap:anywhere}
+.report-card .resolved-foot{margin-top:14px;font-size:11px}
+.list-more{margin:16px 0 0;font-size:12px;text-align:center}
+.cat-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:99px;font-size:11px;font-weight:700;background:#f0e9df;color:#8f7558}
+.cat-roads{--cat-bg:#f6e6de;--cat-fg:#b56b50}.cat-drainage{--cat-bg:#e2eceb;--cat-fg:#2d7772}.cat-waste{--cat-bg:#e4eee4;--cat-fg:#598060}.cat-lighting{--cat-bg:#f5ecd9;--cat-fg:#a17a35}.cat-other{--cat-bg:#f0e9df;--cat-fg:#8f7558}
+.cat-pill.cat-roads,.cat-pill.cat-drainage,.cat-pill.cat-waste,.cat-pill.cat-lighting,.cat-pill.cat-other{background:var(--cat-bg);color:var(--cat-fg)}
+/* Mayor / admin: reports by category */
+.category-overview{padding:20px;margin-bottom:17px}
+.cat-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:16px}
+.cat-card{position:relative;display:flex;flex-direction:column;gap:4px;padding:16px;border:1px solid #e7ded5;border-radius:12px;background:#fffdfa;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.cat-card:hover{transform:translateY(-2px);border-color:var(--cat-fg);box-shadow:var(--shadow)}
+.cat-card-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:var(--cat-bg);color:var(--cat-fg);margin-bottom:10px}
+.cat-card strong{font-size:12px;color:#403a33}
+.cat-card-num{font-family:Manrope,sans-serif;font-size:28px;font-weight:800;letter-spacing:-.06em;line-height:1.15;color:var(--ink)}
+.cat-card small{font-size:11px;color:#9a8e82}
+@media (max-width:1150px){.cat-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:900px){.report-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:650px){.report-grid{grid-template-columns:1fr}.reports-section{padding-bottom:45px}.cat-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.chip-row{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.chip{flex-shrink:0}.panel-chips{padding:12px 12px 0}.public-tools{flex-direction:column;align-items:stretch}}
