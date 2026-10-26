@@ -1,7 +1,7 @@
 # City Connect — Full project
 - `backend/`  : Django REST (Eutropia ComplaintManagement) — code unchanged
 - `frontend/` : React + Vite (Project_EU design), connected to the backend
-[🌐 Visit the Live Website](https://eutropia-internship-project.vercel.app/)
+- [🌐 Visit the Live Website](https://eutropia-internship-project.vercel.app/)
 
 ## Run (Windows PowerShell)
 Terminal 1 — backend:
